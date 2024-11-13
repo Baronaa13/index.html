@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Puerta de Garaje</title>
+    <style>
+        /* CSS incorporado */
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        button {
+            padding: 15px 30px;
+            font-size: 18px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        p#status {
+            font-size: 16px;
+            color: #333;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Control de Puerta del Garaje</h1>
+        <button id="toggle-door">Abrir/Cerrar Puerta</button>
+        <p id="status">Estado: Conectando...</p>
+    </div>
+
+    <!-- Scripts incorporados -->
+    <script src="https://cdn.jsdelivr.net/npm/mqtt/dist/mqtt.min.js"></script>
+    <script>
+        // Conexión con el servidor MQTT usando WebSocket
+        document.addEventListener("DOMContentLoaded", function () {
+            const button = document.getElementById("toggle-door");
+            const statusText = document.getElementById("status");
+
+            // Cambia esta URL al broker MQTT que estés usando
+            const client = mqtt.connect("wss://broker.hivemq.com:8000/mqtt");
+
+            client.on("connect", () => {
+                console.log("Conectado al servidor MQTT");
+                statusText.textContent = "Estado: Conectado";
+            });
+
+            client.on("error", (error) => {
+                console.error("Error de conexión:", error);
+                statusText.textContent = "Estado: Error de conexión";
+            });
+
+            button.addEventListener("click", () => {
+                if (client.connected) {
+                    client.publish("garage/door", "toggle");
+                    console.log("Mensaje enviado para abrir/cerrar la puerta");
+                    statusText.textContent = "Mensaje enviado: Abrir/Cerrar Puerta";
+                } else {
+                    console.log("No conectado al servidor MQTT");
+                    statusText.textContent = "Estado: No conectado";
+                }
+            });
+        });
+    </script>
+</body>
+</html>

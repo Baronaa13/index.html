@@ -5,13 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Control de Puerta de Garaje</title>
     <style>
-        /* CSS incorporado */
+        /* Estilos básicos para la interfaz */
         body {
             font-family: Arial, sans-serif;
             text-align: center;
             margin: 0;
             padding: 0;
-            background-color: #f0f0f0;
+            background-color: #f5f5f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
         }
 
         .container {
@@ -19,52 +23,104 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 100vh;
+            padding: 30px;
+            border-radius: 8px;
+            background-color: #ffffff;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 20px;
         }
 
         button {
             padding: 15px 30px;
             font-size: 18px;
-            background-color: #4CAF50;
-            color: white;
+            font-weight: bold;
             border: none;
             cursor: pointer;
-            border-radius: 5px;
+            border-radius: 8px;
             transition: background-color 0.3s;
         }
 
-        button:hover {
+        button#open-door {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        button#open-door:hover {
             background-color: #45a049;
         }
 
-        p#status {
-            font-size: 16px;
-            color: #333;
+        button#close-door {
+            background-color: #f44336;
+            color: white;
+        }
+
+        button#close-door:hover {
+            background-color: #e53935;
+        }
+
+        #status {
             margin-top: 20px;
+            font-size: 16px;
+            color: #666;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Control de Puerta del Garaje</h1>
-        <button id="toggle-door">Abrir/Cerrar Puerta</button>
+        <div class="button-group">
+            <button id="open-door">Abrir Puerta</button>
+            <button id="close-door">Cerrar Puerta</button>
+        </div>
         <p id="status">Estado: Conectando...</p>
     </div>
 
-    <!-- Scripts incorporados -->
+    <!-- Scripts para conexión MQTT -->
     <script src="https://cdn.jsdelivr.net/npm/mqtt/dist/mqtt.min.js"></script>
     <script>
-        // Conexión con el servidor MQTT usando WebSocket
+        // Conexión al servidor MQTT usando WebSocket y autenticación
         document.addEventListener("DOMContentLoaded", function () {
-            const button = document.getElementById("toggle-door");
+            const openButton = document.getElementById("open-door");
+            const closeButton = document.getElementById("close-door");
             const statusText = document.getElementById("status");
 
-            // Cambia esta URL al broker MQTT que estés usando
-            const client = mqtt.connect("wss://broker.hivemq.com:8000/mqtt");
+            // Reemplaza con la URL de tu servidor HiveMQ Cloud y credenciales
+            const client = mqtt.connect("0d6347add03740459d40cd370d7765a2.s1.eu.hivemq.cloud", {
+                username: "Barona",
+                password: "Bm012005@",
+            });
 
             client.on("connect", () => {
                 console.log("Conectado al servidor MQTT");
                 statusText.textContent = "Estado: Conectado";
+
+                // Suscribirse a los temas para recibir confirmaciones
+                client.subscribe("garage/door/opened", (err) => {
+                    if (!err) console.log("Suscrito al tema: garage/door/opened");
+                });
+                client.subscribe("garage/door/closed", (err) => {
+                    if (!err) console.log("Suscrito al tema: garage/door/closed");
+                });
+            });
+
+            client.on("message", (topic, message) => {
+                // Manejo de mensajes recibidos de los temas suscritos
+                if (topic === "garage/door/opened") {
+                    statusText.textContent = "La puerta está abierta";
+                    console.log("Respuesta recibida: La puerta está abierta");
+                } else if (topic === "garage/door/closed") {
+                    statusText.textContent = "La puerta está cerrada";
+                    console.log("Respuesta recibida: La puerta está cerrada");
+                }
             });
 
             client.on("error", (error) => {
@@ -72,11 +128,22 @@
                 statusText.textContent = "Estado: Error de conexión";
             });
 
-            button.addEventListener("click", () => {
+            openButton.addEventListener("click", () => {
                 if (client.connected) {
-                    client.publish("garage/door", "toggle");
-                    console.log("Mensaje enviado para abrir/cerrar la puerta");
-                    statusText.textContent = "Mensaje enviado: Abrir/Cerrar Puerta";
+                    client.publish("garage/door", "open");
+                    console.log("Mensaje enviado para abrir la puerta");
+                    statusText.textContent = "Mensaje enviado: Abrir Puerta";
+                } else {
+                    console.log("No conectado al servidor MQTT");
+                    statusText.textContent = "Estado: No conectado";
+                }
+            });
+
+            closeButton.addEventListener("click", () => {
+                if (client.connected) {
+                    client.publish("garage/door", "close");
+                    console.log("Mensaje enviado para cerrar la puerta");
+                    statusText.textContent = "Mensaje enviado: Cerrar Puerta";
                 } else {
                     console.log("No conectado al servidor MQTT");
                     statusText.textContent = "Estado: No conectado";

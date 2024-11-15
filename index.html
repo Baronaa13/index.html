@@ -16,7 +16,7 @@
     <div class="container">
         <h1>Control de Puerta del Garaje</h1>
         <p id="status">Estado: Desconectado</p>
-        <button id="toggleButton">Abrir Puerta</button>
+        <button id="toggleButton" disabled>Abrir Puerta</button>
         <p id="message"></p>
     </div>
 
@@ -24,59 +24,71 @@
     <script src="https://cdn.jsdelivr.net/npm/mqtt/dist/mqtt.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // Configuración de conexión
-            const brokerUrl = "wss://5333458ad4b2489083f5ed693ab40f68.s1.eu.hivemq.cloud:8884/mqtt"; // Reemplaza con tu cluster
-            const username = "Barona"; // Tu usuario de HiveMQ
-            const password = "Barona0201@"; // Tu contraseña de HiveMQ
-            const topic = "garage/door/control"; // Topic para enviar comandos
+            const brokerUrl = "wss://5333458ad4b2489083f5ed693ab40f68.s1.eu.hivemq.cloud:8884/mqtt";
+            const username = "Barona";
+            const password = "Barona0201@";
+            const controlTopic = "garage/door/control";
+            const statusTopic = "garage/door/status";
 
             const statusText = document.getElementById('status');
             const messageText = document.getElementById('message');
             const toggleButton = document.getElementById('toggleButton');
 
-            // Conexión al broker MQTT
+            // Conectar al broker MQTT
             const client = mqtt.connect(brokerUrl, {
                 username,
                 password,
-                reconnectPeriod: 1000,
-                connectTimeout: 5000,
+                reconnectPeriod: 1000, // Reconexión cada 1 segundo
+                connectTimeout: 5000,  // Timeout de conexión en 5 segundos
             });
 
-            // Eventos del cliente MQTT
+            // Manejar conexión exitosa
             client.on('connect', () => {
                 statusText.textContent = 'Estado: Conectado';
-                messageText.textContent = '';
+                toggleButton.disabled = false; // Habilitar el botón
                 console.log('Conectado al broker MQTT.');
-                client.subscribe("garage/door/status", (err) => {
-                    if (err) console.error("Error al suscribirse:", err);
+
+                // Suscribirse al tema del estado
+                client.subscribe(statusTopic, (err) => {
+                    if (err) {
+                        console.error('Error al suscribirse al tema:', err);
+                    } else {
+                        console.log('Suscrito al tema:', statusTopic);
+                    }
                 });
             });
 
+            // Manejar mensajes entrantes
             client.on('message', (topic, message) => {
-                if (topic === "garage/door/status") {
-                    messageText.textContent = `Estado de la puerta: ${message.toString()}`;
+                if (topic === statusTopic) {
+                    const estadoPuerta = message.toString();
+                    messageText.textContent = `Estado de la puerta: ${estadoPuerta}`;
+                    console.log(`Mensaje recibido (${topic}):`, estadoPuerta);
                 }
             });
 
+            // Manejar errores
             client.on('error', (err) => {
                 statusText.textContent = 'Estado: Error de conexión';
-                console.error("Error:", err);
+                console.error('Error:', err);
             });
 
+            // Manejar desconexión
             client.on('offline', () => {
                 statusText.textContent = 'Estado: Desconectado';
+                toggleButton.disabled = true; // Deshabilitar el botón
             });
 
             // Enviar comando al pulsar el botón
             toggleButton.addEventListener('click', () => {
-                const command = JSON.stringify({ action: 'toggle' }); // Cambiar a "abrir/cerrar"
-                client.publish(topic, command, { qos: 1 }, (err) => {
+                const command = JSON.stringify({ action: 'toggle' });
+                client.publish(controlTopic, command, { qos: 1 }, (err) => {
                     if (err) {
                         messageText.textContent = 'Error al enviar comando';
-                        console.error("Error publicando:", err);
+                        console.error('Error publicando comando:', err);
                     } else {
                         messageText.textContent = 'Comando enviado: Abrir/Cerrar';
-                        console.log("Comando enviado.");
+                        console.log('Comando enviado:', command);
                     }
                 });
             });

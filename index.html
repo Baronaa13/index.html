@@ -3,151 +3,82 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Control de Puerta de Garaje</title>
+    <title>MQTT WebSocket con HiveMQ</title>
     <style>
-        /* Estilos básicos para la interfaz */
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            margin: 0;
-            padding: 0;
-            background-color: #f5f5f5;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-        }
-
-        .container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 30px;
-            border-radius: 8px;
-            background-color: #ffffff;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
-
-        h1 {
-            margin-bottom: 20px;
-            color: #333;
-        }
-
-        .button-group {
-            display: flex;
-            gap: 20px;
-        }
-
-        button {
-            padding: 15px 30px;
-            font-size: 18px;
-            font-weight: bold;
-            border: none;
-            cursor: pointer;
-            border-radius: 8px;
-            transition: background-color 0.3s;
-        }
-
-        button#open-door {
-            background-color: #4CAF50;
-            color: white;
-        }
-
-        button#open-door:hover {
-            background-color: #45a049;
-        }
-
-        button#close-door {
-            background-color: #f44336;
-            color: white;
-        }
-
-        button#close-door:hover {
-            background-color: #e53935;
-        }
-
-        #status {
-            margin-top: 20px;
-            font-size: 16px;
-            color: #666;
-        }
+        body { font-family: Arial, sans-serif; text-align: center; margin: 0; padding: 0; background-color: #f4f4f4; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
+        .container { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); }
+        button { padding: 10px 20px; margin: 10px; border: none; border-radius: 5px; background: #007BFF; color: #fff; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        #status, #message { margin-top: 10px; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Control de Puerta del Garaje</h1>
-        <div class="button-group">
-            <button id="open-door">Abrir Puerta</button>
-            <button id="close-door">Cerrar Puerta</button>
-        </div>
-        <p id="status">Estado: Conectando...</p>
+        <p id="status">Estado: Desconectado</p>
+        <button id="toggleButton">Abrir Puerta</button>
+        <p id="message"></p>
     </div>
 
-    <!-- Scripts para conexión MQTT -->
+    <!-- Incluye la biblioteca MQTT.js -->
     <script src="https://cdn.jsdelivr.net/npm/mqtt/dist/mqtt.min.js"></script>
     <script>
-        // Conexión al servidor MQTT usando WebSocket y autenticación
-        document.addEventListener("DOMContentLoaded", function () {
-            const openButton = document.getElementById("open-door");
-            const closeButton = document.getElementById("close-door");
-            const statusText = document.getElementById("status");
+        document.addEventListener('DOMContentLoaded', () => {
+            // Configuración de conexión
+            const brokerUrl = "wss://5333458ad4b2489083f5ed693ab40f68.s1.eu.hivemq.cloud:8884/mqtt"; // Reemplaza con tu cluster
+            const username = "Barona"; // Tu usuario de HiveMQ
+            const password = "Barona0201@"; // Tu contraseña de HiveMQ
+            const topic = "garage/door/control"; // Topic para enviar comandos
 
-            // Reemplaza con la URL de tu servidor HiveMQ Cloud y credenciales
-            const client = mqtt.connect("0d6347add03740459d40cd370d7765a2.s1.eu.hivemq.cloud", {
-                username: "Barona",
-                password: "Bm012005@",
+            const statusText = document.getElementById('status');
+            const messageText = document.getElementById('message');
+            const toggleButton = document.getElementById('toggleButton');
+
+            // Conexión al broker MQTT
+            const client = mqtt.connect(brokerUrl, {
+                username,
+                password,
+                reconnectPeriod: 1000,
+                connectTimeout: 5000,
             });
 
-            client.on("connect", () => {
-                console.log("Conectado al servidor MQTT");
-                statusText.textContent = "Estado: Conectado";
-
-                // Suscribirse a los temas para recibir confirmaciones
-                client.subscribe("garage/door/opened", (err) => {
-                    if (!err) console.log("Suscrito al tema: garage/door/opened");
+            // Eventos del cliente MQTT
+            client.on('connect', () => {
+                statusText.textContent = 'Estado: Conectado';
+                messageText.textContent = '';
+                console.log('Conectado al broker MQTT.');
+                client.subscribe("garage/door/status", (err) => {
+                    if (err) console.error("Error al suscribirse:", err);
                 });
-                client.subscribe("garage/door/closed", (err) => {
-                    if (!err) console.log("Suscrito al tema: garage/door/closed");
+            });
+
+            client.on('message', (topic, message) => {
+                if (topic === "garage/door/status") {
+                    messageText.textContent = `Estado de la puerta: ${message.toString()}`;
+                }
+            });
+
+            client.on('error', (err) => {
+                statusText.textContent = 'Estado: Error de conexión';
+                console.error("Error:", err);
+            });
+
+            client.on('offline', () => {
+                statusText.textContent = 'Estado: Desconectado';
+            });
+
+            // Enviar comando al pulsar el botón
+            toggleButton.addEventListener('click', () => {
+                const command = JSON.stringify({ action: 'toggle' }); // Cambiar a "abrir/cerrar"
+                client.publish(topic, command, { qos: 1 }, (err) => {
+                    if (err) {
+                        messageText.textContent = 'Error al enviar comando';
+                        console.error("Error publicando:", err);
+                    } else {
+                        messageText.textContent = 'Comando enviado: Abrir/Cerrar';
+                        console.log("Comando enviado.");
+                    }
                 });
-            });
-
-            client.on("message", (topic, message) => {
-                // Manejo de mensajes recibidos de los temas suscritos
-                if (topic === "garage/door/opened") {
-                    statusText.textContent = "La puerta está abierta";
-                    console.log("Respuesta recibida: La puerta está abierta");
-                } else if (topic === "garage/door/closed") {
-                    statusText.textContent = "La puerta está cerrada";
-                    console.log("Respuesta recibida: La puerta está cerrada");
-                }
-            });
-
-            client.on("error", (error) => {
-                console.error("Error de conexión:", error);
-                statusText.textContent = "Estado: Error de conexión";
-            });
-
-            openButton.addEventListener("click", () => {
-                if (client.connected) {
-                    client.publish("garage/door", "open");
-                    console.log("Mensaje enviado para abrir la puerta");
-                    statusText.textContent = "Mensaje enviado: Abrir Puerta";
-                } else {
-                    console.log("No conectado al servidor MQTT");
-                    statusText.textContent = "Estado: No conectado";
-                }
-            });
-
-            closeButton.addEventListener("click", () => {
-                if (client.connected) {
-                    client.publish("garage/door", "close");
-                    console.log("Mensaje enviado para cerrar la puerta");
-                    statusText.textContent = "Mensaje enviado: Cerrar Puerta";
-                } else {
-                    console.log("No conectado al servidor MQTT");
-                    statusText.textContent = "Estado: No conectado";
-                }
             });
         });
     </script>
